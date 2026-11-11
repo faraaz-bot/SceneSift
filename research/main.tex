@@ -1,0 +1,44 @@
+\documentclass[conference]{IEEEtran}
+\usepackage{amsmath,graphicx,booktabs,url}
+\title{SceneSift: Toward General-Purpose Multimodal Video Summarization and Highlight Extraction}
+\author{\IEEEauthorblockN{SceneSift Project Team}
+\IEEEauthorblockA{CPS 843 / CP 8307: Computer Vision}}
+\begin{document}
+\maketitle
+\begin{abstract}
+This paper studies whether multimodal evidence can improve content-aware highlight selection across heterogeneous videos. The proposed evaluation compares activity-based, visual-semantic, and multimodal ranking methods using duration-matched highlight budgets. We consider visual semantics, motion, audio, transcript content, and optional user prompts. This manuscript is a work in progress; no evaluation results have been collected yet.
+\end{abstract}
+\begin{IEEEkeywords}
+video summarization, highlight extraction, multimodal learning, computer vision
+\end{IEEEkeywords}
+\section{Introduction}
+Highlight selection is subjective and domain dependent. SceneSift targets video-domain generalization without per-category event detection rules. The research question is whether multimodal evidence improves the relevance, diversity, and coverage of selected video moments.
+\section{Related Work}
+TVSum provides human importance labels for short web videos \cite{song2015tvsum}. SumMe provides human-authored video summaries \cite{gygli2014summe}. Mr. HiSum scales highlight labels using audience replay signals \cite{sul2023mrhisum}. VideoXum supports video-and-text summarization \cite{lin2023videoxum}. CLIP connects visual and natural-language representations \cite{radford2021clip}, while Whisper supports speech transcription \cite{radford2023whisper}.
+\section{Proposed Method}
+\subsection{Candidate Segments}
+The pipeline will detect scene boundaries and create overlapping candidate windows to preserve events that span cuts.
+\subsection{Multimodal Ranking}
+For candidate segment $i$, a conceptual baseline score is
+\begin{equation}
+s_i = w_v v_i + w_m m_i + w_a a_i + w_t t_i + w_n n_i,
+\end{equation}
+where $v_i$ denotes visual relevance, $m_i$ motion activity, $a_i$ audio evidence, $t_i$ transcript relevance, and $n_i$ novelty. We will compare fixed and data-driven weighting and renormalize for missing modalities.
+\subsection{Summary Selection}
+Selected clips must meet a target length budget, avoid repetitions, preserve context, and follow the source chronology.
+\section{Experimental Design}
+\subsection{Datasets}
+TVSum (50 videos, roughly 2--10 minutes) is the first proposed benchmark. We will investigate Mr. HiSum, VideoXum and LfVS-T for larger and/or longer-form trials. Raw video availability and annotation comparability must be checked before final selection.
+\subsection{Baselines}
+We plan three methods: (A) motion and audio activity, (B) visual-semantic selection, and (C) the proposed multimodal approach. Results will be compared at matched duration budgets.
+\subsection{Metrics}
+Planned metrics are temporal precision/recall/F1, key-event coverage, redundancy, prompt relevance, human coherence ratings, and processing time. Report each video category separately, with uncertainty and error analysis.
+\section{Results}
+\textbf{Pending experiments.} No quantitative or qualitative model results have been measured. Tables, plots, and ablations will be inserted when tests are completed.
+\section{Discussion}
+\textbf{Pending findings.} We will analyze domain shift, missing audio or speech, annotator disagreement, and cases where high activity does not imply importance.
+\section{Conclusion}
+The initial contribution is a testable, category-independent evaluation design. Claims about improvements will only be made after measurement.
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+\end{document}
