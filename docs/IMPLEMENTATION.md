@@ -93,32 +93,3 @@ SceneSift/
 ```
 
 The folders beyond `docs/` are illustrative and are **not** created by the documentation PR.
-
-## 6. Milestones
-
-| Period | Proposed milestone |
-| --- | --- |
-| Nov 11–17, 2026 | Local ingestion, segmentation, activity baseline |
-| Nov 18–24 | Visual/audio/motion/speech features |
-| Nov 25–Dec 1 | Fusion, selection, video rendering |
-| Dec 2–8 | Prompt-guided demonstration and benchmark experiments |
-| Dec 9–14 | Error analysis, final report, reproducibility |
-
-## 7. Risks and fallback plans
-
-| Risk | Fallback |
-| --- | --- |
-| Limited compute | Sparse frames, smaller pretrained models, feature caching |
-| Scene boundaries split events | Add overlapping windows and context padding |
-| Silent videos | Use present modalities only |
-| Transcription failure | Do not fabricate transcript relevance |
-| Overly repetitive summaries | Temporal separation and semantic diversity penalties |
-| Domain shift | Hold out complete videos and present category-wise metrics |
-| Weak labels | Independent annotators and documented rules |
-| Rights and privacy | Use original/authorized videos; do not commit restricted assets |
-
-## 8. Documentation PR acceptance criteria
-
-This initial PR adds documentation only, a valid Mermaid architecture diagram, explicit research hypotheses and baselines, and accurate *planned* status. It does **not** add model code, training data, trained weights, or claimed experimental results.
-
-See [Experiment](EXPERIMENT.md) and [Architecture](ARCHITECTURE.md).
