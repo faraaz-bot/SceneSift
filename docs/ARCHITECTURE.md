@@ -1,6 +1,6 @@
 # SceneSift — Architecture
 
-> These diagrams describe the implemented pipeline. See [IMPLEMENTATION.md](IMPLEMENTATION.md) for the module behind each box. In the research comparison, the classical method, the blend, and the TVSum run are not implemented yet.
+> These diagrams describe the implemented pipeline. See [IMPLEMENTATION.md](IMPLEMENTATION.md) for the module behind each box. The research comparison is run by `python -m scenesift evaluate`.
 
 ## End-to-end processing
 
@@ -39,8 +39,8 @@ flowchart LR
     D --> A[Baseline A: activity signals]
     D --> B[Baseline B: visual semantics]
     D --> C[Proposed: multimodal ranking]
-    D --> K[Planned D: classical CV only]
-    D --> L[Planned: blend, weights fitted on SumMe]
+    D --> K[D: classical CV only]
+    D --> L[Blend: weights fitted on SumMe]
     U --> E[Equal summary-duration budgets]
     A --> E
     B --> E

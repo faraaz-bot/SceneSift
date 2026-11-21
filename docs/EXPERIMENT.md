@@ -104,6 +104,6 @@ A successful course project provides a reproducible comparison, measurable evalu
 | SumMe, Kendall's τ | 0.096 zero-shot from pretrained features; 0.246 supervised (CSTA); 0.205 human | Pang et al. 2024; Son et al. 2024 |
 | TVSum, Kendall's τ | 0.000 random; 0.042 dppLSTM; 0.135 zero-shot from pretrained features; 0.194 supervised (CSTA); 0.177 human | Otani et al., CVPR 2019; Pang et al. 2024; Son et al. 2024 |
 
-The first SumMe run here measured 0.206 for method C and reproduced the 0.311 agreement figure. The methods in this study train no network, so the targets are 0.234 on SumMe and the zero-shot τ of 0.135 on TVSum; supervised results are listed for context. Full tables and citations are in [DATASETS.md](DATASETS.md#published-results).
+The methods in this study train no network, so the targets are 0.234 on SumMe and the zero-shot τ of 0.135 on TVSum; supervised results are listed for context. Measured results are in [SUMME_RESULTS.md](../experiments/SUMME_RESULTS.md) and [TVSUM_RESULTS.md](../experiments/TVSUM_RESULTS.md). Full tables and citations are in [DATASETS.md](DATASETS.md#published-results).
 
 Related documents: [Project overview](../README.md), [Implementation design](IMPLEMENTATION.md), [Architecture](ARCHITECTURE.md).

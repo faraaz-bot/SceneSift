@@ -1,6 +1,6 @@
 # SceneSift — Implementation
 
-> The design below is implemented in the `scenesift` package. Section 5 maps each stage to its module and section 6 gives the details and the design choices. Model choices and weights remain candidates to revisit once experiments are run. Section 7 lists what the experiment plan still needs from the code.
+> The design below is implemented in the `scenesift` package. Section 5 maps each stage to its module and section 6 gives the details and the design choices. Model choices remain candidates to revisit.
 
 ## 1. Technology stack
 
@@ -14,8 +14,10 @@
 | Audio features | NumPy/SciPy STFT | Energy and spectral change, not “excitement” ground truth |
 | Speech | Whisper via faster-whisper | Timestamped transcripts where speech exists |
 | Text relevance | Sentence Transformers | Prompt similarity, topic novelty |
+| Classical cues | OpenCV (Sobel, frame differences, colour histograms) | No pretrained model |
 | Clip selection | NumPy + custom ranking | Greedy, or maximal marginal relevance for diversity |
-| User interface | Gradio | Upload, prompt, duration, previews |
+| Weight fitting | SciPy non-negative least squares | Fitted on development videos only |
+| User interface | Gradio | Report page; upload, summary length, reels for every method |
 | Evaluation | Python metrics + annotation files | Reproducible splits and per-domain reports |
 
 ## 2. Inputs and outputs
@@ -64,17 +66,17 @@ Rank candidates under the requested summary-duration budget. Remove overlapping 
 
 ### G. Interface and observability
 
-Provide video upload, optional text prompt, duration selection, progress information, preview, MP4 download, and timestamp list. Display feature contributions and limitations rather than claiming the system reasons perfectly about events.
+Provide video upload, summary-length selection, progress information, a reel and a timestamp list for every method, and a download of the results. Display feature contributions and limitations rather than claiming the system reasons perfectly about events. A text request is accepted by the command-line tool.
 
 ## 4. Evaluation implementation
 
-Use the same fixed held-out videos for activity-only, visual-only, and multimodal methods. Annotate reference highlight intervals; store video IDs and evaluation splits separately. Evaluate temporal overlap F1, event coverage, redundancy, and runtime. Cache embeddings/transcripts to keep baseline comparisons tractable; report category-level breakdowns and ablations.
+Use the same fixed held-out videos for activity-only, visual-only, and multimodal methods. Annotate reference highlight intervals; store video IDs and evaluation splits separately. Evaluate temporal overlap F1, rank correlation with annotator scores, event coverage, redundancy, and runtime. Cache embeddings/transcripts to keep baseline comparisons tractable; report category-level breakdowns and ablations.
 
 ## 5. Repository structure
 
 ```text
 SceneSift/
-├── app.py                  Gradio interface
+├── app.py                  Report page with a demonstration section (Gradio)
 ├── configs/default.yaml    Every setting with its default
 ├── scenesift/
 │   ├── media.py            Metadata inspection (ffprobe, with an OpenCV/FFmpeg fallback)
@@ -83,6 +85,7 @@ SceneSift/
 │   ├── features/
 │   │   ├── visual.py       CLIP embeddings; colour-histogram fallback  (stage B)
 │   │   ├── motion.py       Optical flow with camera-motion removal     (stage C)
+│   │   ├── classical.py    Edge strength and frame-to-frame change     (stage C)
 │   │   ├── audio.py        Loudness and spectral change                (stage D)
 │   │   └── speech.py       Transcription, sentence embeddings, topic novelty (stage D)
 │   ├── scoring.py          Robust per-video normalization and fusion   (stage E)
@@ -90,8 +93,9 @@ SceneSift/
 │   ├── export.py           FFmpeg rendering                            (stage F)
 │   ├── pipeline.py         Orchestration, caching, per-clip evidence
 │   ├── evaluation.py       Metrics and the method-comparison runner    (section 4)
-│   └── cli.py              `python -m scenesift summarize|evaluate`
-├── experiments/            Manifest and annotation templates; see its README
+│   ├── fitting.py          Fits the blend's weights on development videos
+│   └── cli.py              `python -m scenesift summarize|evaluate|fit`
+├── experiments/            Dataset converters, comparison and F1-demo scripts, results; see its README
 ├── tests/                  Unit tests and a synthetic-video end-to-end test
 ├── docs/
 └── research/               Paper draft
@@ -113,16 +117,33 @@ colour), measured by the grey-level spread of each frame.
 | `audio` | Mean of two normalized signals: average energy in dB and the 90th percentile of spectral flux |
 | `speech` | With a request: highest sentence-embedding similarity between the request and an utterance in the candidate. Without one: highest similarity to the transcript centroid |
 | `novelty` | Mean of visual novelty (dissimilarity to the preceding 60 s of frames) and topic novelty (dissimilarity of an utterance to the preceding 60 s of speech) |
+| `colour` | Classical. Mean of two signals from colour-histogram descriptors (HSV histogram plus a coarse grey layout, 1 fps): dissimilarity to the whole video, and dissimilarity to the preceding 60 s |
+| `edges` | Classical. Mean Sobel gradient magnitude of the 160 px grey frames (4 fps) |
+| `change` | Classical. Mean absolute grey-level difference between consecutive samples (4 fps), with samples that straddle a cut removed |
 
 **Normalization and fusion.** Each raw feature is mapped to (0, 1) within the video by a logistic of its
 median/MAD z-score. The score is the weighted sum in section 3E with fixed weights
-(visual 0.30, motion 0.20, audio 0.15, speech 0.20, novelty 0.15). These are untuned starting values. When
+(visual 0.30, motion 0.20, audio 0.15, speech 0.20, novelty 0.15; the three classical-only features
+0.20 each). These are untuned starting values. When
 a modality is unavailable for the video its weight is redistributed over the rest; a candidate with no
 value for an available modality (for example no speech in that window) receives the neutral 0.5.
 
-**Compared methods.** A uses `motion` and `audio`; B uses `visual`; C uses all five. All three share the
-same candidates, normalization, context padding, and budget handling. Only C applies the diversity
-constraint by default; the evaluation runner can also run C without it, and with each modality removed.
+**Compared methods.** A (`activity`) uses `motion` and `audio`; B (`semantic`) uses `visual`; C
+(`multimodal`) uses the first five features; D (`classical`) uses `motion`, `colour`, `edges`, and
+`change`, none of which needs a pretrained model; the `blend` uses all eight. All share the same
+candidates, normalization, context padding, and budget handling. Only C and the blend apply the
+diversity constraint by default; the evaluation runner can also run C without it, and with each
+modality removed.
+
+**Fitted weights.** `python -m scenesift fit` fits the blend's weights on annotated development videos.
+Each candidate's target is the share of it that annotators selected, averaged over annotators.
+Features and targets are centred within each video and weights are found by non-negative least
+squares, then scaled to sum to one, so a feature that does not help gets zero. The command also
+reports leave-one-video-out scores, where each video is scored with weights fitted on the others.
+The weights are written to a YAML file under `method_weights`, keyed by method; a method without an
+entry keeps the fixed weights. `--method` fits another method's weights the same way, and
+`--how search` replaces the regression with a search over a grid of weight combinations (steps of
+0.1) for the best mean F1.
 
 **Selection.** Candidates are taken in order of value. With diversity on, value is
 `0.7 × score − 0.3 × (highest visual similarity to a clip already chosen)`. A candidate that overlaps a
@@ -133,8 +154,14 @@ requested length and normally fills it to within two seconds. Clips are merged w
 rendered in source order.
 
 **Caching and timing.** Prompt-independent analysis is cached per file and settings. Stage timings
-(decode, motion, visual, shots, audio, speech) are recorded without model-loading time, and the
+(decode, motion, visual, classical, shots, audio, speech) are recorded without model-loading time, and the
 evaluation runner charges each method only the stages it needs.
+
+**Rank correlation.** A method's candidate scores are turned into a curve over time: each time bin gets
+the mean score of the candidates that contain its centre. Kendall's τ and Spearman's ρ are computed
+between that curve and each annotator's scores, then averaged over annotators. TVSum supplies a score
+per 2-second shot. SumMe supplies selections, so each annotator's reference there is the share of
+every one-second bin they kept. The uniform reference has no scores and gets no rank correlation.
 
 ### Design choices
 
@@ -142,7 +169,7 @@ evaluation runner charges each method only the stages it needs.
 - Speech uses faster-whisper (the same Whisper models on CTranslate2) for CPU speed, with its
   voice-activity filter on. The filter avoids invented text in non-speech audio but can drop speech
   under loud music; `whisper_vad: false` turns it off.
-- Weights are fixed. Fitted fusion (section 3E) is planned, fitted on SumMe only (section 7), and is not implemented.
+- Fitted weights are linear and non-negative. Feature-conditioned fusion is not implemented.
 - When CLIP, Whisper, or the sentence model cannot be loaded, the pipeline continues with what it has
   and reports the gap. The colour-histogram fallback is not semantic and cannot use the request.
 - When OpenCV cannot decode a file (Theora `.ogv`, for example), FFmpeg makes a temporary 360p H.264
@@ -159,12 +186,3 @@ evaluation runner charges each method only the stages it needs.
 - Per-video normalization makes scores relative: a dull video still yields "high" scores.
 - The diversity term uses visual similarity only.
 - The whole audio track is held in memory, which limits very long videos.
-
-## 7. Not yet implemented
-
-The experiment plan ([EXPERIMENT.md](EXPERIMENT.md)) needs the following, which the code does not have yet:
-
-- **Method D, classical computer vision only.** A scoring path built from hand-measured cues (colour histograms, edges, frame differences, optical flow) that loads no pretrained model. The existing colour-histogram fallback in `scenesift/features/visual.py` and the optical flow in `scenesift/features/motion.py` are starting points.
-- **A TVSum converter.** TVSum labels are importance scores per 2-second shot, not intervals; they need converting the way `experiments/convert_summe.py` converts SumMe.
-- **Rank-correlation metrics.** Kendall's τ and Spearman's ρ between a method's scores and each annotator's importance scores, in `scenesift/evaluation.py`.
-- **Weight fitting.** A script that fits the fusion weights on SumMe and writes them to a config file, so the TVSum run uses frozen weights.

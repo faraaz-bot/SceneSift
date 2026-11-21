@@ -6,11 +6,11 @@ SceneSift is evaluated on two public video-summarization benchmarks. Both come w
 | --- | --- | --- |
 | Paper | Gygli et al., *Creating Summaries from User Videos*, ECCV 2014 | Song et al., *TVSum: Summarizing Web Videos Using Titles*, CVPR 2015 |
 | Videos | 25 personal videos, unedited or minimally edited | 50 YouTube videos, 5 in each of 10 categories |
-| Total length | 67 minutes | Not yet measured here; individual videos run from about 1 to 11 minutes |
+| Total length | 67 minutes | 210 minutes |
 | Annotators | 15 to 18 per video | 20 per video |
 | Label | Each person selected the frames they would keep in a summary of at most 15% of the video | Each person scored every 2-second shot from 1 (not important) to 5 (very important) |
 | Text requests | None | None (each video has a title and a category) |
-| Terms | Videos for non-commercial research only; annotations free for research | Creative Commons CC-BY 3.0 |
+| Terms | Videos for non-commercial research only; annotations free for research | Videos carry a Creative Commons CC-BY licence; the dataset is distributed for non-commercial research and is not to be redistributed |
 | Role here | Development set; fusion weights are fitted on it | Held-out test set; per-category results |
 
 Neither dataset is redistributed in this repository.
@@ -27,11 +27,14 @@ The archive (<https://data.vision.ee.ethz.ch/cvl/SumMe/SumMe.zip>, about 2.4 GB)
 
 ## TVSum
 
-The dataset is listed at <https://github.com/yalesong/tvsum>, which points to <http://people.csail.mit.edu/yalesong/tvsum> for the download (644 MB). It has not been downloaded here yet, so the layout below is taken from the dataset's documentation and still needs checking against the files.
+The archive (`tvsum50_ver_1_1.tgz` at <https://people.csail.mit.edu/yalesong/tvsum/>, 640 MB) contains:
 
-- 50 videos found on YouTube by searching for ten categories: changing a vehicle tire (VT), getting a vehicle unstuck (VU), grooming an animal (GA), making a sandwich (MS), parkour (PK), parade (PR), flash mob (FM), beekeeping (BK), bike tricks (BT), and dog show (DS).
-- An annotation file with one row per video and annotator, holding that person's 1-to-5 score for every 2-second shot.
-- A metadata file with each video's category, title, and length.
+- `video/`: the 50 videos as MP4 files named by YouTube id, collected from YouTube in September 2014 by searching for ten categories: changing a vehicle tire (VT), getting a vehicle unstuck (VU), grooming an animal (GA), making a sandwich (MS), parkour (PK), parade (PR), flash mob gathering (FM), bee keeping (BK), attempting bike tricks (BT), and dog show (DS).
+- `data/ydata-tvsum50-anno.tsv`: 1,000 rows, one per video and annotator, each holding the video id, the category code, and that person's 1-to-5 score for every frame. The score is constant within each 2-second shot.
+- `data/ydata-tvsum50-info.tsv`: each video's category, id, title, URL, and length.
+- Thumbnails and the authors' MATLAB evaluation code.
+
+`experiments/convert_tvsum.py` keeps each person's score per 2-second shot and also builds a 15% reference summary per person from their highest-scored shots.
 
 Because the labels are importance scores and not selected intervals, TVSum supports two kinds of measurement: overlap with a reference summary built from the scores, and rank correlation between a method's scores and each annotator's scores.
 
@@ -54,9 +57,11 @@ This is the protocol used in this repository, so the rows are comparable.
 | SceneSift uniform reference | No content | 0.172 | [SUMME_RESULTS.md](../experiments/SUMME_RESULTS.md) |
 | SceneSift A: activity | Classical signals | 0.195 | same |
 | SceneSift B: semantic | Pretrained features | 0.165 | same |
-| SceneSift C: multimodal, untuned weights | Mixed | 0.206 | same |
+| SceneSift C: multimodal, untuned weights | Mixed | 0.207 | same |
+| SceneSift D: classical CV | Classical | 0.186 | same |
+| SceneSift blend, leave-one-video-out | Mixed, fitted weights | 0.193 | same |
 
-The classical method from 2014 is ahead of the current untuned multimodal method. Reaching 0.234 on SumMe is the first target for the blend.
+The hand-built method from 2014 is ahead of every method here.
 
 ### F-measure as reported by deep-learning papers
 
@@ -87,7 +92,7 @@ Kendall's τ and Spearman's ρ measure whether a method orders the moments of a 
 | CSTA | Supervised | 0.246 | 0.274 | 0.194 | 0.255 | Son et al. 2024 |
 | Human | | 0.205 | 0.213 | 0.177 | 0.204 | Otani et al. 2019; Son et al. 2024 |
 
-The zero-shot row gives each dataset's best training-free variant in that paper. The supervised methods are trained and tested on splits of the same dataset with five-fold cross-validation. SceneSift trains no network, so the closest published comparison is the zero-shot row: τ of about 0.10 on SumMe and 0.13 on TVSum.
+The zero-shot row gives each dataset's best training-free variant in that paper. The supervised methods are trained and tested on splits of the same dataset with five-fold cross-validation. SceneSift trains no network, so the closest published comparison is the zero-shot row: τ of about 0.10 on SumMe and 0.13 on TVSum. Measured here: on SumMe, 0.102 for the multimodal method and 0.046 for the classical method; on TVSum, 0.088 for the classical method, 0.097 for the activity baseline, and −0.009 for the multimodal method ([TVSUM_RESULTS.md](../experiments/TVSUM_RESULTS.md)).
 
 ### Sources
 
