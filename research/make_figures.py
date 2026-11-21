@@ -190,7 +190,7 @@ def figure_categories(out_dir: Path, tvsum: list[dict]) -> None:
     categories = sorted(by_category)
     keys = [key for key, _, _ in METHODS]
     grid = np.array([[statistics.fmean(by_category[c][m]) for m in keys] for c in categories])
-    figure, axis = plt.subplots(figsize=(COLUMN, 2.9))
+    figure, axis = plt.subplots(figsize=(COLUMN, 2.5))
     axis.imshow(grid, cmap=DIVERGING, vmin=-0.2, vmax=0.2, aspect="auto")
     for (i, j), value in np.ndenumerate(grid):
         axis.text(j, i, f"{value:+.2f}", ha="center", va="center", fontsize=6.5,
@@ -253,7 +253,7 @@ def figure_example(out_dir: Path, row: dict, cfg: Config, title: str) -> None:
     importance = np.mean([scores for scores in annotation.importance.values()], axis=0)
     step = annotation.importance_step
 
-    figure = plt.figure(figsize=(FULL, 4.0))
+    figure = plt.figure(figsize=(FULL, 3.4))
     grid = figure.add_gridspec(3, 8, height_ratios=[1.15, 1.0, 1.25], hspace=0.42, wspace=0.06)
     for offset, key in ((0, "classical"), (4, "multimodal")):
         clips = sorted(summaries[key].clips, key=lambda clip: -clip["score"])[:4]
