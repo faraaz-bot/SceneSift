@@ -1,0 +1,9 @@
+{
+  "video_id": "parkour_01",
+  "category": "parkour",
+  "prompt": null,
+  "annotators": {
+    "annotator_1": [[12.0, 20.5], [44.0, 51.0], [118.5, 127.0]],
+    "annotator_2": [[13.5, 21.0], [117.0, 126.0]]
+  }
+}

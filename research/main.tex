@@ -1,0 +1,65 @@
+\documentclass[conference]{IEEEtran}
+\usepackage{amsmath,graphicx,booktabs,url}
+\title{SceneSift: Toward General-Purpose Multimodal Video Summarization and Highlight Extraction}
+\author{\IEEEauthorblockN{SceneSift Project Team}
+\IEEEauthorblockA{CPS 843 / CP 8307: Computer Vision}}
+\begin{document}
+\maketitle
+\begin{abstract}
+This paper studies whether multimodal evidence can improve content-aware highlight selection across heterogeneous videos. The proposed evaluation compares activity-based, visual-semantic, classical computer-vision, and multimodal ranking methods on the SumMe and TVSum benchmarks using duration-matched highlight budgets. We consider visual semantics, motion, audio, transcript content, and optional user prompts. This manuscript is a work in progress; results are not yet reported here.
+\end{abstract}
+\begin{IEEEkeywords}
+video summarization, highlight extraction, multimodal learning, computer vision
+\end{IEEEkeywords}
+\section{Introduction}
+Highlight selection is subjective and domain dependent. SceneSift targets video-domain generalization without per-category event detection rules. The research question is whether multimodal evidence improves the relevance, diversity, and coverage of selected video moments.
+\section{Related Work}
+TVSum provides human importance labels for short web videos \cite{song2015tvsum}. SumMe provides human-authored video summaries \cite{gygli2014summe}. Mr. HiSum scales highlight labels using audience replay signals \cite{sul2023mrhisum}. VideoXum supports video-and-text summarization \cite{lin2023videoxum}. CLIP connects visual and natural-language representations \cite{radford2021clip}, while Whisper supports speech transcription \cite{radford2023whisper}.
+
+Early methods were built from hand-designed features. On SumMe, Gygli et al.\ \cite{gygli2014summe} report a mean F-measure of 0.234 for superframes scored with hand-built interestingness features, against 0.163 for colour-histogram clustering, 0.143 for uniform sampling, and 0.311 for agreement between annotators. Later work trains deep networks on the benchmarks themselves. Otani et al.\ \cite{otani2019rethinking} showed that under the usual F-measure protocol random importance scores perform about as well as published methods, and proposed rank correlation with the annotators' scores instead. Table~\ref{tab:published} lists published rank correlations. Methods that train no network are the relevant comparison for this work: Pang et al.\ \cite{pang2024zeroshot} reach a Kendall's $\tau$ of 0.135 on TVSum directly from pretrained features.
+\begin{table}[t]
+\caption{Published rank correlation with annotator importance scores. Supervised methods use five-fold cross-validation on the same dataset. Values for A2Summ and VASNet are as listed in \cite{son2024csta}.}
+\label{tab:published}
+\centering
+\begin{tabular}{lcccc}
+\toprule
+ & \multicolumn{2}{c}{SumMe} & \multicolumn{2}{c}{TVSum} \\
+Method & $\tau$ & $\rho$ & $\tau$ & $\rho$ \\
+\midrule
+Random \cite{otani2019rethinking} & 0.000 & 0.000 & 0.000 & 0.000 \\
+dppLSTM \cite{otani2019rethinking} & -- & -- & 0.042 & 0.055 \\
+Zero-shot \cite{pang2024zeroshot} & 0.096 & 0.117 & 0.135 & 0.178 \\
+A2Summ & 0.108 & 0.129 & 0.137 & 0.165 \\
+VASNet & 0.160 & 0.170 & 0.160 & 0.170 \\
+CSTA \cite{son2024csta} & 0.246 & 0.274 & 0.194 & 0.255 \\
+Human \cite{otani2019rethinking,son2024csta} & 0.205 & 0.213 & 0.177 & 0.204 \\
+\bottomrule
+\end{tabular}
+\end{table}
+\section{Proposed Method}
+\subsection{Candidate Segments}
+The pipeline detects shot boundaries and adds overlapping candidate windows of 4\,s and 8\,s, with edges snapped to nearby cuts, so that events inside long shots or spanning cuts are preserved.
+\subsection{Multimodal Ranking}
+For candidate segment $i$, the score is
+\begin{equation}
+s_i = w_v v_i + w_m m_i + w_a a_i + w_t t_i + w_n n_i,
+\end{equation}
+where $v_i$ denotes visual relevance (CLIP text--image similarity when a request is given, otherwise distinctiveness within the video), $m_i$ motion activity (optical-flow magnitude after removing the median flow), $a_i$ audio evidence (energy and spectral change), $t_i$ transcript relevance (sentence-embedding similarity to the request, or centrality within the transcript), and $n_i$ novelty relative to the preceding minute. Each feature is normalized within the video by a logistic of its median/MAD $z$-score. The current implementation uses fixed, untuned weights and redistributes the weight of any modality that is unavailable for a video; data-driven weighting is future work.
+\subsection{Summary Selection}
+Clips are chosen greedily under the target length budget using maximal marginal relevance against clips already chosen, skipping candidates that overlap a chosen clip. One second of context is added on each side and counted against the budget, and the selected clips are rendered in source order.
+\section{Experimental Design}
+\subsection{Datasets}
+We use two public benchmarks with human annotations. SumMe \cite{gygli2014summe} (25 user videos, each summarized by 15 to 18 people) is the development set on which fusion weights are fitted. TVSum \cite{song2015tvsum} (50 videos in 10 categories, each scored by 20 people) is the held-out test set and provides per-category results.
+\subsection{Baselines}
+We implement three methods: (A) motion and audio activity, (B) visual-semantic selection, and (C) the proposed multimodal approach. All three share the same candidates, normalization, and budget handling; only (C) applies the diversity term. Two further methods are planned: (D) classical computer-vision cues only, with no pretrained models, and a blend of classical and learned evidence with weights fitted on SumMe. Evenly spaced clips serve as a reference. Results will be compared at matched duration budgets.
+\subsection{Metrics}
+Planned metrics are temporal precision/recall/F1, key-event coverage, redundancy, processing time, and rank correlation with annotator importance scores on TVSum. Requests are demonstrated by example and not measured. Report each TVSum category separately, with uncertainty and error analysis.
+\section{Results}
+\textbf{Pending experiments.} A first untuned SumMe run exists in the repository but is not yet reported here; TVSum has not been run. Tables, plots, and ablations will be inserted when tests are completed.
+\section{Discussion}
+\textbf{Pending findings.} We will analyze domain shift, missing audio or speech, annotator disagreement, and cases where high activity does not imply importance.
+\section{Conclusion}
+The initial contribution is a testable, category-independent evaluation design. Claims about improvements will only be made after measurement.
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+\end{document}

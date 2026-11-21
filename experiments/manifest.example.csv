@@ -1,0 +1,4 @@
+source_id,category,path,annotation,split,license,prompt
+parkour_01,parkour,videos/parkour_01.mp4,annotations/parkour_01.json,test,CC-BY-3.0,
+dog_show_01,dog show,videos/dog_show_01.mp4,annotations/dog_show_01.json,test,CC-BY-3.0,
+cooking_01,user video,videos/cooking_01.webm,annotations/cooking_01.json,train,research use only,

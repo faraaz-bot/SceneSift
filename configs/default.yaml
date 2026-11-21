@@ -1,0 +1,46 @@
+# SceneSift defaults, mirroring scenesift/config.py. Pass a copy with `--config` to override.
+# The fusion weights are untuned starting points. Fit or adjust them on training/validation
+# videos only, never on the held-out test annotations.
+
+motion_fps: 4.0
+visual_fps: 1.0
+analysis_width: 160
+
+shot_backend: auto            # auto | scenedetect | histogram
+window_seconds: [4.0, 8.0]
+window_overlap: 0.5
+min_segment_seconds: 2.0
+max_segment_seconds: 12.0
+snap_seconds: 0.75
+blank_frame_std: 6.0          # grey-level spread (0-255) below which a frame counts as blank
+max_blank_fraction: 0.5       # drop candidates with a larger share of blank frames
+
+visual_backend: auto          # auto | clip | histogram
+clip_model: ViT-B-32
+clip_pretrained: laion2b_s34b_b79k
+speech_backend: auto          # auto | whisper | none
+whisper_model: base
+whisper_vad: true             # false recovers speech under music but can invent text
+text_backend: auto            # auto | sentence-transformers | none
+text_model: sentence-transformers/all-MiniLM-L6-v2
+device: auto                  # auto | cpu | cuda
+
+weights:
+  visual: 0.30
+  motion: 0.20
+  audio: 0.15
+  speech: 0.20
+  novelty: 0.15
+prompt_top_k: 3
+context_window_seconds: 60.0
+
+mmr_lambda: 0.7
+max_overlap: 0.25
+context_before: 1.0
+context_after: 1.0
+
+crf: 20
+preset: veryfast
+
+cache_dir: ~/.cache/scenesift
+use_cache: true

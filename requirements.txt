@@ -1,0 +1,18 @@
+# Core pipeline
+numpy>=1.26
+scipy>=1.11
+opencv-python>=4.9
+pyyaml>=6.0
+imageio-ffmpeg>=0.5
+scenedetect>=0.6.4
+
+# Models. On a machine without an NVIDIA GPU, install the CPU build of torch first:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+torch>=2.2
+torchvision
+open_clip_torch>=2.24
+sentence-transformers>=3.0
+faster-whisper>=1.0
+
+# Interface
+gradio>=5.0,<7.0
