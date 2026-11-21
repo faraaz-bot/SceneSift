@@ -3,7 +3,7 @@ import unittest
 from dataclasses import fields
 from pathlib import Path
 
-from scenesift.config import FEATURES, METHOD_FEATURES, Config
+from scenesift.config import ALL_FEATURES, METHOD_FEATURES, Config
 
 DEFAULT_FILE = Path(__file__).resolve().parent.parent / "configs" / "default.yaml"
 
@@ -31,7 +31,7 @@ class ConfigTests(unittest.TestCase):
 
     def test_methods_only_use_known_features(self):
         for used in METHOD_FEATURES.values():
-            self.assertLessEqual(set(used), set(FEATURES))
+            self.assertLessEqual(set(used), set(ALL_FEATURES))
 
 
 if __name__ == "__main__":

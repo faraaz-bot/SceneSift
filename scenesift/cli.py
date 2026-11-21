@@ -1,4 +1,4 @@
-"""Command-line entry points: `python -m scenesift summarize|evaluate`."""
+"""Command-line entry points: `python -m scenesift summarize|evaluate|fit`."""
 from __future__ import annotations
 
 import argparse
@@ -40,6 +40,14 @@ def _evaluate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _fit(args: argparse.Namespace) -> int:
+    from .fitting import run_fit
+
+    run_fit(args.manifest, args.out, cfg=_config(args.config), split=args.split, budget=args.budget,
+            method=args.method, how=args.how, report_file=args.report)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="scenesift", description="Multimodal video highlight extraction.")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -58,7 +66,7 @@ def main(argv: list[str] | None = None) -> int:
     evaluate.add_argument("manifest", help="CSV with source_id, category, path, annotation, split.")
     evaluate.add_argument("--out", default="experiments/results")
     evaluate.add_argument("--methods", nargs="+", choices=sorted(METHOD_FEATURES),
-                          default=["activity", "semantic", "multimodal"])
+                          default=["activity", "semantic", "multimodal", "classical", "blend"])
     evaluate.add_argument("--budgets", nargs="+", default=["30", "60", "120"],
                           help="Seconds (30) or a share of each video's length (15%%).")
     evaluate.add_argument("--split", default="test")
@@ -66,6 +74,18 @@ def main(argv: list[str] | None = None) -> int:
                           help="Also run the multimodal method with each modality removed and without diversity.")
     evaluate.add_argument("--config", help="YAML file overriding defaults.")
     evaluate.set_defaults(run=_evaluate)
+
+    fit = commands.add_parser("fit", help="Fit a method's weights on annotated development videos.")
+    fit.add_argument("manifest", help="CSV with source_id, category, path, annotation, split.")
+    fit.add_argument("--out", default="configs/fitted.yaml", help="YAML file to write the weights to.")
+    fit.add_argument("--split", default="train", help="Manifest split to fit on.")
+    fit.add_argument("--method", choices=sorted(METHOD_FEATURES), default="blend")
+    fit.add_argument("--how", choices=["regression", "search"], default="regression",
+                     help="Least-squares fit to annotator selections, or a grid search for the best F1.")
+    fit.add_argument("--budget", default="15%", help="Summary budget for the leave-one-out report.")
+    fit.add_argument("--report", help="CSV file for the per-video leave-one-out scores.")
+    fit.add_argument("--config", help="YAML file overriding defaults.")
+    fit.set_defaults(run=_fit)
 
     args = parser.parse_args(argv)
     try:

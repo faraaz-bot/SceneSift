@@ -1,0 +1,9 @@
+# Per-method fusion weights fitted on development videos.
+# Written by `python -m scenesift fit`; do not edit by hand.
+method_weights:
+  multimodal:
+    visual: 0.3
+    motion: 0.2
+    audio: 0.3
+    speech: 0.1
+    novelty: 0.1

@@ -31,6 +31,10 @@ weights:
   audio: 0.15
   speech: 0.20
   novelty: 0.15
+  colour: 0.20                # the last three are the classical cues (scenesift/features/classical.py)
+  edges: 0.20
+  change: 0.20
+method_weights: {}            # per-method fitted weights; written by `python -m scenesift fit`
 prompt_top_k: 3
 context_window_seconds: 60.0
 
