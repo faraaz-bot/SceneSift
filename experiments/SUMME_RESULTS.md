@@ -1,50 +1,90 @@
-# First benchmark run: SumMe
+# SumMe results (development set)
 
-Run on 2026-11-21 with the default configuration (`configs/default.yaml`), with no setting tuned on
-this data. Raw output is in `experiments/results/summe/` (git-ignored); reproduce it with the commands
-in [README.md](README.md#summe-benchmark).
+Run on 2026-11-21. Methods A to D and C's ablations use the fixed weights in `configs/default.yaml`.
+The blend uses weights fitted on SumMe itself (`configs/fitted_summe.yaml`), so SumMe is the
+development set and not a test of the blend; its held-out figure below comes from leave-one-video-out
+fitting. Raw output is in `experiments/results/summe/` (git-ignored); reproduce it with the commands in
+[README.md](README.md#summe-benchmark).
 
 **Setup.** All 25 SumMe videos (67 minutes, 15 to 18 annotators each), summary budget 15% of each
 video's length, no text request. Models: OpenCLIP ViT-B-32 (`laion2b_s34b_b79k`), Whisper `base`,
-`all-MiniLM-L6-v2`, on CPU. Reels were within half a second of each other in mean length across methods.
+`all-MiniLM-L6-v2`, on CPU.
 
 ## Result
 
-Mean F1 against each annotator, averaged over the 25 videos (± sample standard deviation):
+Mean over the 25 videos (± sample standard deviation). F1 is overlap with each annotator's summary;
+Kendall's τ is rank correlation with each annotator's per-second selections.
 
-| Method | F1 | Redundancy | Analysis seconds per source minute |
-| --- | --- | --- | --- |
-| Uniform reference (evenly spaced 5 s clips) | 0.172 ± 0.079 | n/a | 0 |
-| A: activity (motion + audio) | 0.195 ± 0.110 | 0.841 | 1.8 |
-| B: semantic (visual only) | 0.165 ± 0.108 | 0.763 | 2.7 |
-| C: multimodal (proposed) | **0.206 ± 0.116** | 0.776 | 4.8 |
-| Agreement between human annotators | 0.311 | | |
+| Method | F1 | Kendall's τ | Spearman's ρ | Redundancy | Analysis seconds per source minute |
+| --- | --- | --- | --- | --- | --- |
+| Uniform reference (evenly spaced 5 s clips) | 0.172 ± 0.079 | n/a | n/a | n/a | 0 |
+| A: activity (motion + audio) | 0.195 ± 0.110 | 0.066 ± 0.093 | 0.082 | 0.841 | 1.7 |
+| B: semantic (CLIP visual only) | 0.165 ± 0.108 | 0.067 ± 0.103 | 0.084 | 0.763 | 2.3 |
+| C: multimodal | 0.207 ± 0.112 | 0.102 ± 0.102 | 0.127 | 0.769 | 4.1 |
+| D: classical CV (motion, colour, edges, change) | 0.186 ± 0.124 | 0.046 ± 0.126 | 0.058 | 0.856 | 1.8 |
+| Blend, weights fitted on all 25 videos (in-sample) | 0.212 ± 0.107 | 0.103 ± 0.093 | 0.128 | 0.787 | 4.3 |
+| Blend, leave-one-video-out (held out) | 0.193 | 0.080 | | | |
+| Agreement between human annotators (mean pairwise) | 0.311 | 0.229 | | | |
 
-Paired differences in F1 across videos (10,000-sample bootstrap interval; Wilcoxon signed-rank test,
-not corrected for multiple comparisons):
+Fitted blend weights: audio 0.29, novelty 0.20, visual 0.19, motion 0.14, edges 0.10, change 0.07,
+speech 0 and colour 0.
 
-| Comparison | Mean difference | 95% interval | Videos where first is better | p |
-| --- | --- | --- | --- | --- |
-| C minus B | +0.041 | +0.010 to +0.078 | 17 of 25 | 0.034 |
-| C minus A | +0.011 | −0.018 to +0.052 | 12 of 25 | 0.98 |
-| C minus uniform | +0.033 | −0.014 to +0.086 | 15 of 25 | 0.33 |
-| A minus uniform | +0.023 | −0.015 to +0.062 | 14 of 25 | 0.40 |
-| B minus uniform | −0.008 | −0.049 to +0.033 | 14 of 25 | 0.85 |
-| C minus C without diversity | +0.002 | −0.012 to +0.016 | 7 of 25 | 0.87 |
+Paired differences across videos (10,000-sample bootstrap interval; Wilcoxon signed-rank test, not
+corrected for multiple comparisons), from `experiments/compare_methods.py`. The blend rows use the
+in-sample blend.
 
-Ablations of C (F1): without audio 0.188, without speech 0.197, without visual 0.201, without motion
-0.202, without novelty 0.205, without diversity 0.204 (redundancy rises from 0.776 to 0.810).
+| Comparison | Measure | Mean difference | 95% interval | Videos where first is better | p |
+| --- | --- | --- | --- | --- | --- |
+| C minus B | F1 | +0.042 | +0.011 to +0.079 | 17 of 25 | 0.037 |
+| C minus A | F1 | +0.012 | −0.016 to +0.053 | 12 of 25 | 0.98 |
+| C minus D | F1 | +0.021 | −0.010 to +0.057 | 12 of 25 | 0.48 |
+| C minus uniform | F1 | +0.034 | −0.012 to +0.086 | 16 of 25 | 0.22 |
+| D minus uniform | F1 | +0.013 | −0.040 to +0.072 | 11 of 25 | 0.90 |
+| Blend minus C | F1 | +0.005 | −0.046 to +0.052 | 13 of 25 | 0.47 |
+| Blend minus D | F1 | +0.026 | −0.030 to +0.081 | 14 of 25 | 0.17 |
+| C minus D | τ | +0.056 | +0.015 to +0.096 | 18 of 25 | 0.013 |
+| C minus B | τ | +0.035 | +0.012 to +0.059 | 19 of 25 | 0.008 |
+| C minus A | τ | +0.037 | −0.003 to +0.075 | 17 of 25 | 0.13 |
+| Blend minus C | τ | +0.001 | −0.024 to +0.023 | 15 of 25 | 0.60 |
+
+Ablations of C (F1 / τ): without audio 0.186 / 0.092, without speech 0.198 / 0.103, without motion
+0.201 / 0.096, without visual 0.203 / 0.087, without novelty 0.203 / 0.096, without diversity
+0.204 / 0.102.
 
 ## Reading
 
-- The proposed method has the highest mean, but the only difference the data can distinguish is that it
-  beats the visual-only baseline (H2 direction; marginal, and one of several tests).
-- It is **not** distinguishable from the activity baseline (H1 not supported here) or from evenly
-  spaced clips. One video (`Jumps`, 0.50 vs 0.09) accounts for most of its lead over the activity baseline.
-- The diversity term lowers redundancy slightly and does not change F1 (H3: redundancy down, coverage
-  unchanged).
-- Removing audio hurts the most; the other single-modality removals are within noise.
-- All methods are well below human agreement (0.31).
+- The multimodal method C has the highest F1 among the fixed-weight methods. The differences the data
+  can distinguish are that C beats the visual-only baseline B on both measures (H2) and beats the
+  classical method D on rank correlation.
+- C is **not** distinguishable from the activity baseline A (H1 not supported here) or from evenly
+  spaced clips on F1.
+- The classical method D is above evenly spaced clips on average, but not distinguishably, and it is
+  the weakest method on rank correlation (first half of H4 not supported here).
+- Fitting the blend did not help. In-sample it is level with C; on held-out videos it is below C
+  (0.193 against 0.207 F1, 0.080 against 0.102 τ). With 25 videos the fitted weights do not transfer
+  even within SumMe (second half of H4 not supported here).
+- The fit gave the classical colour cue and speech no weight, and gave edges and frame change a
+  little.
+- The diversity term lowers redundancy (0.769 with it, 0.806 without) and does not change F1 (H3:
+  redundancy down, coverage unchanged).
+- Removing audio hurts F1 the most; the other single-modality removals are within noise.
+- All methods are well below human agreement.
+
+## Tuning the multimodal weights
+
+Two ways of choosing C's five weights on SumMe were tried (`python -m scenesift fit --method
+multimodal`). "Held out" scores each video with weights chosen on the other 24.
+
+| Weights for C | F1, all 25 videos | F1, held out | τ, held out |
+| --- | --- | --- | --- |
+| Untuned defaults | 0.207 | not fitted | not fitted |
+| Least-squares fit (visual 0.21, motion 0.21, audio 0.34, speech 0, novelty 0.24) | 0.197 | 0.192 | 0.090 |
+| Grid search for best F1 (visual 0.3, motion 0.2, audio 0.3, speech 0.1, novelty 0.1) | 0.228 | 0.180 | 0.068 |
+
+The grid search finds weights that score 0.228 on the videos it searched over, but on held-out videos
+it does worse than the untuned defaults: with 25 videos the search fits noise. Neither tuned set is
+adopted; `configs/default.yaml` keeps the untuned weights and `configs/tuned_multimodal.yaml` records
+the grid-search result. Their effect on TVSum is in [TVSUM_RESULTS.md](TVSUM_RESULTS.md).
 
 ## Against published results
 
@@ -57,11 +97,12 @@ annotators, 15% summary length):
 | Colour-histogram clustering (Gygli et al.) | 0.163 |
 | Visual attention (Gygli et al.) | 0.167 |
 | Hand-built interestingness features (Gygli et al.) | 0.234 |
-| C: multimodal, this run | 0.206 |
+| D: classical CV, this run | 0.186 |
+| C: multimodal, this run | 0.207 |
 | Agreement between annotators (Gygli et al.; reproduced here) | 0.311 |
 
-The multimodal method is above the simple published baselines and below the SumMe paper's own
-hand-built method. The uniform reference here (0.172) scores higher than theirs (0.143); the two are
+Both the classical and the multimodal method are above the simple published baselines and below the
+SumMe paper's own hand-built method. The uniform reference here (0.172) scores higher than theirs (0.143); the two are
 built differently, so differences of a few hundredths between the two sets of numbers should not be
 over-read. Sources are listed in [docs/DATASETS.md](../docs/DATASETS.md#published-results).
 
@@ -69,9 +110,8 @@ over-read. Sources are listed in [docs/DATASETS.md](../docs/DATASETS.md#publishe
 
 - SumMe is short, unedited user video without categories or requests. It says nothing about
   requests.
-- The fusion weights are untuned guesses. Because these results have now been seen, SumMe can no
-  longer serve as an untouched test set. It is the set the weights are fitted on, and
-  TVSum is the test set.
+- The fixed weights are untuned guesses, and the blend's weights were fitted on these same videos.
+  SumMe is therefore the development set; TVSum is the test set.
 - 25 videos give wide intervals. Treat every number above as descriptive.
 
 ## Checks on other footage (no annotations, judged by eye)
