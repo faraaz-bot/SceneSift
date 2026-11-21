@@ -5,6 +5,7 @@ opencv-python>=4.9
 pyyaml>=6.0
 imageio-ffmpeg>=0.5
 scenedetect>=0.6.4
+pillow>=10.0
 
 # Models. On a machine without an NVIDIA GPU, install the CPU build of torch first:
 #   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
@@ -16,3 +17,6 @@ faster-whisper>=1.0
 
 # Interface
 gradio>=5.0,<7.0
+
+# Report figures (research/make_figures.py)
+matplotlib>=3.8
