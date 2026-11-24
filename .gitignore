@@ -16,6 +16,7 @@ research/*.blg
 research/*.log
 research/*.out
 research/*.pdf
+!research/SceneSift_report.pdf
 output/
 experiments/videos/
 experiments/results/

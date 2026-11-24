@@ -2,6 +2,8 @@
 
 `main.tex` is the project report in IEEE conference format, organised as the course guidelines require: abstract with the code link, Introduction, Technical Approach, Experiments and Analysis, Conclusion, References, within 4 to 6 pages excluding references. Its numbers come from `experiments/RESULTS.md`, which has the fuller tables, and its figures are drawn from the evaluation outputs; keep both in step when a run is repeated.
 
+`SceneSift_report.pdf` is the compiled report with all figures. Recompile it after changing `main.tex` or the figures.
+
 ## Figures
 
 `make_figures.py` draws every figure into `figures/` as PNG, used by the report and by the report page:
