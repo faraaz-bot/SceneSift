@@ -54,12 +54,12 @@ This is the protocol used in this repository, so the rows are comparable.
 | Superframes with interestingness (the SumMe paper's method) | Classical, hand-built features | 0.234 | Gygli et al. 2014 |
 | Random scores with KTS segmentation | No content | 0.19 | Otani et al. 2019 |
 | Agreement between annotators | Human | 0.311 | Gygli et al. 2014 |
-| SceneSift uniform reference | No content | 0.172 | [SUMME_RESULTS.md](../experiments/SUMME_RESULTS.md) |
+| SceneSift uniform reference | No content | 0.172 | [RESULTS.md](../experiments/RESULTS.md) |
 | SceneSift A: activity | Classical signals | 0.195 | same |
 | SceneSift B: semantic | Pretrained features | 0.165 | same |
-| SceneSift C: multimodal, untuned weights | Mixed | 0.207 | same |
-| SceneSift D: classical CV | Classical | 0.186 | same |
-| SceneSift blend, leave-one-video-out | Mixed, fitted weights | 0.193 | same |
+| SceneSift C: multimodal | Mixed | 0.207 | same |
+| SceneSift D: classical CV | Classical, course techniques | 0.189 | same |
+| SceneSift blend, leave-one-video-out | Mixed, fitted weights | 0.202 | same |
 
 The hand-built method from 2014 is ahead of every method here.
 
@@ -92,7 +92,7 @@ Kendall's τ and Spearman's ρ measure whether a method orders the moments of a 
 | CSTA | Supervised | 0.246 | 0.274 | 0.194 | 0.255 | Son et al. 2024 |
 | Human | | 0.205 | 0.213 | 0.177 | 0.204 | Otani et al. 2019; Son et al. 2024 |
 
-The zero-shot row gives each dataset's best training-free variant in that paper. The supervised methods are trained and tested on splits of the same dataset with five-fold cross-validation. SceneSift trains no network, so the closest published comparison is the zero-shot row: τ of about 0.10 on SumMe and 0.13 on TVSum. Measured here: on SumMe, 0.102 for the multimodal method and 0.046 for the classical method; on TVSum, 0.088 for the classical method, 0.097 for the activity baseline, and −0.009 for the multimodal method ([TVSUM_RESULTS.md](../experiments/TVSUM_RESULTS.md)).
+The zero-shot row gives each dataset's best training-free variant in that paper. The supervised methods are trained and tested on splits of the same dataset with five-fold cross-validation. SceneSift trains no network, so the closest published comparison is the zero-shot row: τ of about 0.10 on SumMe and 0.13 on TVSum. Measured here: on SumMe, 0.102 for the multimodal method and 0.078 for the classical method; on TVSum, 0.084 for the classical method, 0.097 for the activity baseline, and −0.008 for the multimodal method ([RESULTS.md](../experiments/RESULTS.md)).
 
 ### Sources
 

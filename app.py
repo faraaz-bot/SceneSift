@@ -72,47 +72,61 @@ _STYLE_ON_BLOCKS = "css" in inspect.signature(gr.Blocks.__init__).parameters
 ABSTRACT = """
 **Abstract.** We study whether hand-built computer-vision cues, features from pretrained models, or a
 blend of the two best select the important moments of a video when no model is trained for the task.
-SceneSift cuts a video into candidate clips, measures eight kinds of evidence for each clip, and picks
-the highest-scoring clips that fit a length budget. Five selection methods are compared on two public
+SceneSift cuts a video into candidate clips, measures evidence for each clip, and picks the
+highest-scoring clips that fit a length budget. Five selection methods are compared on two public
 benchmarks with human annotations: SumMe (25 videos), used for development, and TVSum (50 videos in 10
-categories), held out and run once. On TVSum, a classical method that uses only optical-flow motion,
-colour histograms, edge strength, and frame differences reaches a Kendall's τ of 0.088 with annotator
-importance scores, close to a motion-and-audio baseline (0.097) and well above CLIP-based semantic
-(−0.057) and multimodal (−0.009) ranking. A blend with weights fitted on SumMe (0.028) does not improve
-on the classical method. All methods remain below human agreement (0.178) and below the best published
-training-free (0.135) and supervised (0.194) results.
+categories), used for testing. A classical method built only from techniques taught in the course
+(SIFT matching, a RANSAC-fitted homography, image subtraction, thresholding, Canny edges, and colour
+histograms) reaches a Kendall's τ of 0.084 with annotator importance scores on TVSum, close to an
+optical-flow baseline (0.097) and well above CLIP-based semantic (−0.057) and multimodal (−0.008)
+ranking, at under a third of the analysis cost. A blend with weights fitted on SumMe (0.060) does not
+improve on the classical method. All methods remain below human agreement (0.178) and below the best
+published training-free (0.135) and supervised (0.194) results.
 """
 
 METHOD = """
 ## 1. Method
 
 Every video goes through the same steps (Figure 1); no category label is used. The video is cut into
-candidate clips: shots between 2 and 12 seconds long, plus overlapping windows of 4 and 8 seconds. Eight
-kinds of evidence are measured for each clip, each is normalized within the video to the range 0 to 1 by
-a logistic function of its median/MAD z-score, and a weighted sum gives the clip's score. Clips are then
+candidate clips: shots between 2 and 12 seconds long, plus overlapping windows of 4 and 8 seconds.
+Evidence is measured for each clip, each kind is normalized within the video to the range 0 to 1 by a
+logistic function of its median/MAD z-score, and a weighted sum gives the clip's score. Clips are then
 chosen in order of score until 15% of the video's length is filled, skipping clips that overlap one
-already chosen.
+already chosen. The methods differ only in the evidence they use.
 """
 
 METHOD_TABLE = """
-The evidence is of three kinds. *Classical cues* are measured directly from pixels with no pretrained
-model: motion (dense optical flow with the median flow vector removed, so camera pans are discounted),
-colour (how unlike the rest of the video, and the preceding minute, a clip's colour histogram is), edges
-(mean Sobel gradient magnitude), and frame change (mean absolute grey-level difference between
-consecutive frames). The *signal cue* is audio loudness and spectral change. *Learned features* come
-from pretrained models: CLIP image embeddings, Whisper transcripts with sentence embeddings, and novelty
-relative to the preceding minute. The five compared methods differ only in the evidence they use
-(Table 1).
+### 1.1 The classical method (D)
 
-**Table 1.** Compared methods.
+The classical method uses only techniques taught in the course and loads no pretrained model. A moving
+camera changes every pixel, so consecutive frames are first aligned: SIFT keypoints are detected and
+matched with the ratio test, and a homography is fitted to the matches with RANSAC, which rejects
+matches on moving objects as outliers. Five cues follow (Table 1) and are combined with equal weights.
 
-| Method | Evidence | Weights |
+**Table 1.** Cues of the classical method.
+
+| Cue | Measurement | Course techniques |
 | --- | --- | --- |
-| A: Activity | motion, audio | fixed |
-| B: Semantic | CLIP visual | fixed |
-| C: Multimodal | CLIP visual, motion, audio, speech, novelty | fixed |
-| D: Classical | motion, colour, edges, frame change | fixed |
-| Blend | all eight | fitted on SumMe by non-negative least squares |
+| Scene motion | Mean difference between the aligned frames | SIFT, matching, RANSAC, homography, warping, image subtraction |
+| Moving area | Share of pixels whose smoothed, aligned difference exceeds a threshold | Gaussian smoothing, thresholding |
+| Camera motion | Mean displacement of the frame corners under the homography | Homography |
+| Edge detail | Share of pixels marked by the Canny detector | Gaussian smoothing, Sobel gradients, non-maximum suppression, hysteresis |
+| Colour change | Dissimilarity of the clip's HSV histogram to the video's and to the preceding minute's | Colour models, histograms |
+
+### 1.2 The multimodal method (C)
+
+The multimodal method combines five features, three of them from pretrained models; nothing is trained
+for this task. *Visual* (weight 0.30): frames are embedded with CLIP, and the feature is how unlike the
+whole video the clip's mean embedding is. *Motion* (0.20): Farnebäck optical flow with the median flow
+vector removed. *Audio* (0.15): loudness and spectral change. *Speech* (0.20): Whisper transcribes the
+audio, each utterance is embedded, and the feature is how close an utterance in the clip is to the
+centroid of the transcript. *Novelty* (0.15): how unlike the preceding minute the clip's visuals and
+speech are. Selection also penalizes clips that look like one already chosen.
+
+### 1.3 Baselines and blend
+
+Method A (activity) uses optical-flow motion and audio. Method B (semantic) uses the CLIP visual
+feature alone. The blend uses all ten features with non-negative least-squares weights fitted on SumMe.
 """
 
 EVALUATION = """
@@ -120,8 +134,10 @@ EVALUATION = """
 
 **Data.** SumMe has 25 user videos (67 minutes), each summarized by 15 to 18 people. TVSum has 50 web
 videos (210 minutes) in 10 categories, each with importance ratings from 20 people for every 2-second
-shot. SumMe was the development set, on which the blend's weights were fitted. TVSum was held out: no
-method was run on it until all methods and weights were fixed, and it was then run once.
+shot. SumMe was the development set: the classical method's cues were chosen on it and the blend's
+weights were fitted on it. TVSum was the test set, run with everything fixed beforehand. The classical
+method was rebuilt from course techniques after a first TVSum run, using SumMe only, and TVSum was then
+run once more.
 
 **Measures.** Temporal F1 is the overlap, in seconds, between a method's 15% summary and one annotator's
 summary, divided by each summary's length and combined as 2 · precision · recall / (precision + recall)
@@ -141,45 +157,45 @@ RESULTS = """
 | Uniform reference | 0.172 | n/a | 0.143 | n/a |
 | A: Activity | 0.195 | 0.066 | 0.176 | 0.097 |
 | B: Semantic | 0.165 | 0.067 | 0.144 | −0.057 |
-| C: Multimodal | 0.207 | 0.102 | 0.150 | −0.009 |
-| D: Classical | 0.186 | 0.046 | 0.180 | 0.088 |
-| Blend | 0.193 | 0.080 | 0.147 | 0.028 |
+| C: Multimodal | 0.207 | 0.102 | 0.149 | −0.008 |
+| D: Classical | 0.189 | 0.078 | 0.185 | 0.084 |
+| Blend | 0.202 | 0.102 | 0.156 | 0.060 |
 | Agreement between annotators | 0.311 | 0.229 | 0.250 | 0.178 |
 
-On SumMe the multimodal method C has the highest scores, but with 25 videos the only differences that
-can be distinguished are that C exceeds B on both measures and exceeds D on rank correlation. No method
-is distinguishable from evenly spaced clips on F1.
+On SumMe the multimodal method C has the highest scores, but with 25 videos the only difference that
+can be distinguished among the fixed-weight methods is that C exceeds B. No fixed-weight method is
+distinguishable from evenly spaced clips on F1.
 
-On the held-out TVSum the ordering reverses (Figure 3). The two methods that use no CLIP features, A and
-D, have the highest rank correlation and F1. D exceeds C by 0.096 in τ (95% bootstrap interval 0.059 to
-0.134) and is better on 40 of the 50 videos; it exceeds B by 0.145. D is the only method distinguishably
-above evenly spaced clips on F1 (+0.037, interval 0.009 to 0.068). The blend fitted on SumMe is above C
-but below D by 0.059 (interval 0.027 to 0.093). Analysis costs about 1.3 seconds per minute of video for
-D and 4.3 seconds for C on a CPU.
+On TVSum the ordering reverses (Figure 3). The two methods that use no CLIP features, A and D, have the
+highest rank correlation and F1. D exceeds C by 0.093 in τ (95% bootstrap interval 0.053 to 0.134) and
+is better on 40 of the 50 videos; it exceeds B by 0.141. D is distinguishably above evenly spaced clips
+on F1 (+0.042, interval 0.016 to 0.070). The blend is above C by 0.068 but does not beat D (−0.025 in
+τ, interval −0.052 to +0.005; −0.030 in F1). Analysis costs about 1.3 seconds per minute of video for D
+and 4.5 seconds for C on a CPU.
 """
 
 RESULTS_DETAIL = """
 Removing one feature at a time from C (Figure 4) shows the cause: without the CLIP visual feature, C's τ
-on TVSum rises from −0.009 to 0.065, and without motion it falls to −0.047. By category (Figure 5), A
+on TVSum rises from −0.008 to 0.064, and without motion it falls to −0.047. By category (Figure 5), A
 and D are positive almost everywhere and strongest where the important moments involve visible action;
 the CLIP-based methods match them only for sandwich making, where the important steps look different
 from the rest of the video.
 
 Tuning C's weights does not change the conclusion (Table 3). Weights chosen on SumMe score below the
 untuned ones on held-out SumMe videos and barely move TVSum. Weights fitted within TVSum by
-leave-one-video-out bring C level with D, but only by placing two thirds of the weight on motion.
+leave-one-video-out bring C level with D, but only by placing most of the weight on motion.
 
-**Table 3.** Tuning the multimodal weights. TVSum values were computed after the held-out run.
+**Table 3.** Tuning the multimodal weights. TVSum values are diagnostics computed after the test run.
 
 | Weights for C | SumMe F1, held out | TVSum τ |
 | --- | --- | --- |
-| Untuned | 0.207 | −0.009 |
-| Least squares on SumMe | 0.192 | 0.013 |
-| Grid search on SumMe | 0.180 | 0.014 |
-| Least squares within TVSum, cross-validated | not run | 0.086 |
-| D: Classical, untuned | 0.186 | 0.088 |
+| Untuned | 0.207 | −0.008 |
+| Least squares on SumMe | 0.191 | 0.013 |
+| Grid search on SumMe | 0.190 | 0.014 |
+| Least squares within TVSum, cross-validated | not applicable | 0.086 |
+| D: Classical, untuned | 0.189 | 0.084 |
 
-Against published work on TVSum, D (0.088) and A (0.097) are above the trained dppLSTM (0.042) and
+Against published work on TVSum, D (0.084) and A (0.097) are above the trained dppLSTM (0.042) and
 DR-DSN (0.020) as measured by Otani et al., below the training-free method of Pang et al. (0.135), and
 below supervised methods such as CSTA (0.194). On SumMe no method reaches the 0.234 F1 that Gygli et al.
 report for hand-built features.
@@ -191,17 +207,18 @@ DISCUSSION = """
 Without a text request, the CLIP visual feature scores how unlike the rest of the video a clip looks. On
 SumMe's unedited recordings that is mildly useful. On TVSum's edited web videos it is negatively related
 to what annotators rated as important, plausibly because the segments that look least like the rest are
-title cards, credits, cutaways, and transitions. Motion and frame change mark moments where something is
-happening, and that carried over from one dataset to the other.
+title cards, credits, cutaways, and transitions. The classical motion cues mark moments where something
+is happening, and that carried over from one dataset to the other.
 
-Fitting the blend on 25 SumMe videos did not help: the fit favoured audio, novelty, and visual
-distinctiveness, which do not predict importance on TVSum. No linear weighting of these features
-exceeded a τ of about 0.09 on TVSum, so better features, not better weights, are what would close the
-gap to published methods.
+The blend fitted on SumMe gave most of its weight to edges, audio, novelty, moving area, and camera
+motion. That made it much better than C on TVSum, but not better than the classical method alone.
+Least-squares weights for the classical method itself did worse on held-out videos than equal weights.
+With 25 development videos, fitted weights did not transfer reliably.
 
 The samples are small (25 and 50 videos, five per TVSum category), TVSum F1 is known to separate methods
-poorly, and selection guided by a text request was not evaluated because neither benchmark has requests.
-All methods are well below human agreement. Figure 6 shows a typical video in detail.
+poorly, the classical method was revised after a first TVSum run, and selection guided by a text
+request was not evaluated because neither benchmark has requests. All methods are well below human
+agreement. Figure 6 shows a typical video in detail.
 """
 
 DEMONSTRATION = """
@@ -225,6 +242,9 @@ REFERENCES = """
    arXiv:2405.11905, 2024.
 6. A. Radford et al. Learning Transferable Visual Models From Natural Language Supervision. ICML, 2021.
 7. A. Radford et al. Robust Speech Recognition via Large-Scale Weak Supervision. ICML, 2023.
+8. D. G. Lowe. Distinctive Image Features from Scale-Invariant Keypoints. IJCV 60(2), 2004.
+9. M. A. Fischler, R. C. Bolles. Random Sample Consensus. Communications of the ACM 24(6), 1981.
+10. J. Canny. A Computational Approach to Edge Detection. IEEE TPAMI 8(6), 1986.
 
 The full report, with all tables, is `research/main.tex` in the project repository.
 """
@@ -381,8 +401,8 @@ with gr.Blocks(title="SceneSift: Classical Cues versus Learned Features for Vide
     gr.Markdown(DISCUSSION)
     _figure("example", "**Figure 6.** The TVSum video with the median difference between D and C. Top: frames "
             "from the four highest-scoring clips of D and of C with the annotators' mean rating. Middle: mean "
-            "rating of every 2-second shot. Bottom: each method's summary. Video: “#453 girl gets van stuck "
-            "in the back fourty [Davidsfarm]” (TVSum, CC BY).")
+            "rating of every 2-second shot. Bottom: each method's summary. Video: “ICC World Twenty 20 "
+            "Bangladesh 2014, Flash Mob - UITS, Chittagong (Official)” (TVSum, CC BY).")
     gr.Markdown(DEMONSTRATION)
     video = gr.Video(label="Video", sources=["upload"], format=None, height=320)
     duration = gr.Slider(minimum=15, maximum=180, step=15, value=60, label="Summary length (seconds)")

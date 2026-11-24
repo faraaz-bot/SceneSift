@@ -12,24 +12,67 @@ from scenesift.config import ALL_FEATURES, CLASSICAL_FEATURES, Config
 from scenesift.datatypes import Segment
 from scenesift.evaluation import (Annotation, load_annotation, rank_correlation, reference_scores,
                                   run_comparison, temporal_prf)
-from scenesift.features.classical import edge_strength, frame_change
+import cv2
+
+from scenesift.features.classical import FrameAligner, edge_density, frame_change
 from scenesift.fitting import fit_weights, run_fit, weight_grid
 from scenesift.pipeline import Scored, analyze, importance_curve, score, summarize
 from synthetic import EVENTS, make_video
 
 
 class CueTests(unittest.TestCase):
-    def test_edge_strength_is_zero_for_flat_and_high_for_textured_frames(self):
+    def test_edge_density_is_zero_for_flat_and_high_for_textured_frames(self):
         flat = np.full((60, 80), 90, dtype=np.uint8)
         stripes = np.tile(np.array([0, 255], dtype=np.uint8).repeat(4), (60, 10))
-        self.assertEqual(edge_strength(flat), 0.0)
-        self.assertGreater(edge_strength(stripes), 50.0)
+        self.assertEqual(edge_density(flat), 0.0)
+        self.assertGreater(edge_density(stripes), 0.15)
 
     def test_frame_change_is_the_mean_absolute_difference(self):
         a = np.zeros((10, 10), dtype=np.uint8)
         b = np.full((10, 10), 30, dtype=np.uint8)
         self.assertEqual(frame_change(a, a), 0.0)
         self.assertAlmostEqual(frame_change(a, b), 30.0)
+
+
+class AlignmentTests(unittest.TestCase):
+    @staticmethod
+    def _scene(shift: int = 0, blob: bool = False) -> np.ndarray:
+        rng = np.random.default_rng(1)
+        canvas = cv2.GaussianBlur((rng.random((200, 320)) * 255).astype(np.uint8), (0, 0), 2.0)
+        canvas = cv2.normalize(canvas, None, 0, 255, cv2.NORM_MINMAX)
+        frame = canvas[20:140, 40 + shift:200 + shift].copy()
+        if blob:
+            cv2.circle(frame, (80, 60), 14, 255, -1)
+        return frame
+
+    def test_first_frame_has_nothing_to_compare_with(self):
+        self.assertTrue(np.isnan(FrameAligner().measure(self._scene()).residual))
+
+    def _pair(self, second: np.ndarray):
+        aligner = FrameAligner()
+        aligner.measure(self._scene())
+        return aligner.measure(second)
+
+    def test_a_camera_pan_is_measured_and_removed(self):
+        still, panned = self._scene(), self._scene(shift=6)
+        pan = self._pair(panned)
+        self.assertLess(pan.residual, 0.25 * frame_change(still, panned))
+        self.assertAlmostEqual(pan.camera, 6.0, delta=1.0)
+        self.assertLess(pan.moving, 0.02)
+        self.assertLess(self._pair(still).camera, 0.5)
+
+    def test_a_moving_object_survives_alignment(self):
+        pan, with_object = self._pair(self._scene(shift=6)), self._pair(self._scene(shift=6, blob=True))
+        self.assertGreater(with_object.residual, 2.0 * pan.residual)
+        self.assertGreater(with_object.moving, pan.moving + 0.01)
+
+    def test_frames_without_texture_fall_back_to_plain_subtraction(self):
+        aligner = FrameAligner()
+        aligner.measure(np.zeros((60, 80), np.uint8))
+        movement = aligner.measure(np.full((60, 80), 40, np.uint8))
+        self.assertAlmostEqual(movement.residual, 40.0)
+        self.assertEqual(movement.moving, 1.0)
+        self.assertTrue(np.isnan(movement.camera))
 
 
 class RankCorrelationTests(unittest.TestCase):
@@ -67,15 +110,15 @@ class RankCorrelationTests(unittest.TestCase):
 class FitTests(unittest.TestCase):
     def test_weight_goes_to_the_feature_that_tracks_the_target(self):
         rng = np.random.default_rng(0)
-        features = rng.normal(size=(200, 8))
+        features = rng.normal(size=(200, len(ALL_FEATURES)))
         weights = fit_weights([(features, features[:, 2] * 0.5)], ALL_FEATURES)
         self.assertAlmostEqual(weights["audio"], 1.0, places=3)
         self.assertAlmostEqual(sum(weights.values()), 1.0, places=3)
 
     def test_fitting_fails_when_nothing_is_related(self):
-        features = np.eye(8)
+        features = np.eye(len(ALL_FEATURES))
         with self.assertRaises(ValueError):
-            fit_weights([(features, -np.ones(8))], ALL_FEATURES)
+            fit_weights([(features, -np.ones(len(ALL_FEATURES)))], ALL_FEATURES)
 
     def test_grid_covers_the_simplex(self):
         grid = weight_grid(("a", "b", "c"), 2)
@@ -101,7 +144,9 @@ class MethodTests(unittest.TestCase):
     def test_classical_method_uses_only_pixel_cues_and_finds_the_events(self):
         summary = summarize(self.video, target_seconds=9, method="classical", cfg=self.cfg,
                             analysis=self.analysis)
-        self.assertEqual(set(summary.weights), set(CLASSICAL_FEATURES))
+        # The flat synthetic scenes give SIFT nothing to match, so camera motion cannot be measured.
+        self.assertEqual(set(summary.weights), set(CLASSICAL_FEATURES) - {"camera"})
+        self.assertEqual(summary.evidence_missing, ["camera"])
         self.assertGreater(temporal_prf(summary.intervals(), EVENTS)[2], 0.6)
 
     def test_blend_uses_fitted_weights_and_skips_zero_weights(self):
@@ -112,10 +157,11 @@ class MethodTests(unittest.TestCase):
 
     def test_analysis_round_trips_classical_measurements_through_the_cache(self):
         again = analyze(self.video, self.cfg)
-        np.testing.assert_allclose(again.edges, self.analysis.edges)
-        np.testing.assert_allclose(again.change, self.analysis.change)
+        self.assertEqual(set(again.cues), {"edges", "residual", "moving", "camera"})
+        for name, values in self.analysis.cues.items():
+            np.testing.assert_allclose(again.cues[name], values)
+            self.assertEqual(len(values), len(self.analysis.motion_times))
         np.testing.assert_allclose(again.colour_embeddings, self.analysis.colour_embeddings)
-        self.assertEqual(len(self.analysis.edges), len(self.analysis.motion_times))
 
     def test_scores_rank_the_events_above_the_rest(self):
         scored = score(self.analysis, self.cfg, None, "classical")

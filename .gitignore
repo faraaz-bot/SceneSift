@@ -19,3 +19,5 @@ research/*.pdf
 output/
 experiments/videos/
 experiments/results/
+*.zip
+.cline_storage/

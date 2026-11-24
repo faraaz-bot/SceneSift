@@ -1,12 +1,10 @@
 # SceneSift research report
 
-`main.tex` is the project report in IEEE conference format. Its tables are copied from
-`experiments/SUMME_RESULTS.md` and `experiments/TVSUM_RESULTS.md`, and its figures are drawn from the
-evaluation outputs; keep both in step when a run is repeated.
+`main.tex` is the project report in IEEE conference format, organised as the course guidelines require: abstract with the code link, Introduction, Technical Approach, Experiments and Analysis, Conclusion, References, within 4 to 6 pages excluding references. Its numbers come from `experiments/RESULTS.md`, which has the fuller tables, and its figures are drawn from the evaluation outputs; keep both in step when a run is repeated.
 
 ## Figures
 
-`make_figures.py` draws every figure into `figures/` (PDF for the report, PNG for previews):
+`make_figures.py` draws every figure into `figures/` as PNG, used by the report and by the report page:
 
 ```bash
 python research/make_figures.py --summe experiments/results/summe --tvsum experiments/results/tvsum \
@@ -36,7 +34,7 @@ pdflatex main.tex
 pdflatex main.tex
 ```
 Alternatively upload `main.tex`, `references.bib`, and `figures/` to Overleaf, or run
-`tectonic main.tex`. The report was last compiled with Tectonic 0.15 (9 pages).
+`tectonic main.tex`. The report was last compiled with Tectonic 0.15: 6 pages, with the body ending on page 6 ahead of the references.
 
 ## Working convention
 

@@ -27,7 +27,7 @@ from .datatypes import Clip, Segment, Utterance
 
 Progress = Callable[[float, str], None]
 _MODELS: dict[tuple, object] = {}
-CACHE_VERSION = 3  # bump when the stored analysis changes shape
+CACHE_VERSION = 5  # bump when the stored analysis changes shape
 
 EVIDENCE_LABELS = {
     "visual": "visual content",
@@ -36,8 +36,10 @@ EVIDENCE_LABELS = {
     "speech": "speech content",
     "novelty": "new content",
     "colour": "distinct colours",
-    "edges": "visual detail",
-    "change": "frame-to-frame change",
+    "residual": "movement in the scene",
+    "moving": "area in motion",
+    "camera": "camera movement",
+    "edges": "edge detail",
 }
 
 
@@ -54,8 +56,8 @@ class Analysis:
     motion_times: np.ndarray
     motion: np.ndarray
     detail: np.ndarray  # grey-level spread of each motion sample; near zero for blank frames
-    edges: np.ndarray  # edge strength of each motion sample
-    change: np.ndarray  # grey-level difference from the previous motion sample, cuts masked
+    # Classical cues per motion sample (see features/classical.py); movement cues have cuts masked.
+    cues: dict[str, np.ndarray]
     colour_embeddings: np.ndarray  # colour-histogram descriptor of each visual sample
     audio: tuple[np.ndarray, np.ndarray, np.ndarray] | None
     utterances: list[Utterance] | None  # None: speech not analysed; []: analysed, none found
@@ -167,8 +169,9 @@ def _save(analysis: Analysis, file: Path) -> None:
     times, energy, flux = analysis.audio if analysis.audio is not None else (empty, empty, empty)
     np.savez_compressed(file, meta=json.dumps(meta), visual_times=analysis.visual_times,
                         visual_embeddings=analysis.visual_embeddings, motion_times=analysis.motion_times,
-                        motion=analysis.motion, detail=analysis.detail, edges=analysis.edges,
-                        change=analysis.change, colour_embeddings=analysis.colour_embeddings, audio_times=times,
+                        motion=analysis.motion, detail=analysis.detail,
+                        **{f"cue_{name}": values for name, values in analysis.cues.items()},
+                        colour_embeddings=analysis.colour_embeddings, audio_times=times,
                         audio_energy=energy, audio_flux=flux)
 
 
@@ -180,7 +183,7 @@ def _load(path: str, file: Path) -> Analysis:
         return Analysis(path=path, info=meta["info"], cuts=meta["cuts"], visual_times=data["visual_times"],
                         visual_embeddings=data["visual_embeddings"], visual_encoder=meta["visual_encoder"],
                         motion_times=data["motion_times"], motion=data["motion"], detail=data["detail"],
-                        edges=data["edges"], change=data["change"],
+                        cues={key[4:]: data[key] for key in data.files if key.startswith("cue_")},
                         colour_embeddings=data["colour_embeddings"],
                         audio=audio, utterances=utterances, timings=meta["timings"],
                         warnings=meta["warnings"])
@@ -221,7 +224,8 @@ def analyze(video_path: str, cfg: Config | None = None, progress: Progress | Non
         degraded |= cfg.visual_backend == "auto" and encoder.name == "histogram"
         colour_encoder = visual_features.HistogramEncoder()
         motion_times, motion, differences, detail = [], [], [], []
-        edges, change = [], []
+        cues: dict[str, list[float]] = {"edges": [], "residual": [], "moving": [], "camera": []}
+        aligner = classical_features.FrameAligner()
         visual_times, embeddings, colour, batch = [], [], [], []
         previous = None
         next_visual = 0.0
@@ -240,8 +244,10 @@ def analyze(video_path: str, cfg: Config | None = None, progress: Progress | Non
                 differences.append(motion_features.histogram_difference(previous, gray))
             spent["motion"] += time.perf_counter() - tick
             tick = time.perf_counter()
-            edges.append(classical_features.edge_strength(gray))
-            change.append(np.nan if previous is None else classical_features.frame_change(previous, gray))
+            cues["edges"].append(classical_features.edge_density(gray))
+            movement = aligner.measure(gray)
+            for name in ("residual", "moving", "camera"):
+                cues[name].append(getattr(movement, name))
             spent["classical"] += time.perf_counter() - tick
             previous = gray
             if moment + 1e-9 >= next_visual:
@@ -320,9 +326,11 @@ def analyze(video_path: str, cfg: Config | None = None, progress: Progress | Non
                             visual_times=np.asarray(visual_times), visual_embeddings=np.vstack(embeddings),
                             visual_encoder=encoder.name, motion_times=motion_times_arr,
                             motion=motion_features.mask_cuts(motion_times_arr, motion_arr, cuts),
-                            detail=np.asarray(detail, dtype=float), edges=np.asarray(edges, dtype=float),
-                            change=motion_features.mask_cuts(motion_times_arr, np.asarray(change, dtype=float),
-                                                             cuts),
+                            detail=np.asarray(detail, dtype=float),
+                            cues={name: np.asarray(values, dtype=float) if name == "edges"
+                                  else motion_features.mask_cuts(motion_times_arr, np.asarray(values, dtype=float),
+                                                                 cuts)
+                                  for name, values in cues.items()},
                             colour_embeddings=np.vstack(colour), audio=audio,
                             utterances=utterances, timings=timings, warnings=warnings)
         if cfg.use_cache and not degraded:
@@ -377,8 +385,7 @@ def score(analysis: Analysis, cfg: Config | None = None, prompt: str | None = No
     colour_mean = _unit(colours.mean(axis=0))
     colour_distinct = np.full(count, np.nan)
     colour_novelty = np.full(count, np.nan)
-    edges = np.full(count, np.nan)
-    change = np.full(count, np.nan)
+    cues = {name: np.full(count, np.nan) for name in analysis.cues}
     for index, segment in enumerate(segments):
         inside = _within(times, segment.start, segment.end)
         if inside.size == 0:
@@ -396,7 +403,7 @@ def score(analysis: Analysis, cfg: Config | None = None, prompt: str | None = No
         if before.size:
             colour_novelty[index] = 1.0 - float(colour_vector @ _unit(colours[before].mean(axis=0)))
         dense = _within(analysis.motion_times, segment.start, segment.end)
-        for values, target in ((analysis.motion, motion), (analysis.edges, edges), (analysis.change, change)):
+        for values, target in ((analysis.motion, motion), *((analysis.cues[name], cues[name]) for name in cues)):
             if np.isfinite(values[dense]).any():
                 target[index] = float(np.nanmean(values[dense]))
 
@@ -448,8 +455,7 @@ def score(analysis: Analysis, cfg: Config | None = None, prompt: str | None = No
         "speech": speech,
         "novelty": combine([robust_unit(visual_novelty), topic]),
         "colour": combine([robust_unit(colour_distinct), robust_unit(colour_novelty)]),
-        "edges": robust_unit(edges) if np.isfinite(edges).any() else None,
-        "change": robust_unit(change) if np.isfinite(change).any() else None,
+        **{name: robust_unit(values) if np.isfinite(values).any() else None for name, values in cues.items()},
     }
     use = [name for name in METHOD_FEATURES[method] if name not in drop]
     fused, contributions, weights = fuse(features, cfg.weights_for(method), use)

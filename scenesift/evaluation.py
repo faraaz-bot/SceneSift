@@ -22,7 +22,7 @@ METHOD_STAGES = {
     "activity": ("decode", "motion", "shots", "audio"),
     "semantic": ("decode", "visual", "shots"),
     "multimodal": ("decode", "motion", "visual", "shots", "audio", "speech"),
-    "classical": ("decode", "motion", "classical", "shots"),
+    "classical": ("decode", "classical", "shots"),
     "blend": ("decode", "motion", "visual", "classical", "shots", "audio", "speech"),
 }
 

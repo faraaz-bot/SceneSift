@@ -6,10 +6,10 @@ from pathlib import Path
 
 FEATURES = ("visual", "motion", "audio", "speech", "novelty")
 # Cues measured directly from pixels, with no pretrained model (scenesift/features/classical.py).
-CLASSICAL_FEATURES = ("motion", "colour", "edges", "change")
+CLASSICAL_FEATURES = ("residual", "moving", "camera", "edges", "colour")
 ALL_FEATURES = FEATURES + tuple(name for name in CLASSICAL_FEATURES if name not in FEATURES)
 
-# Evidence each compared method may use (docs/EXPERIMENT.md section 7).
+# Evidence each compared method may use (docs/METHODS.md).
 METHOD_FEATURES = {
     "activity": ("motion", "audio"),
     "semantic": ("visual",),
@@ -24,7 +24,7 @@ METHOD_DIVERSITY = {"activity": False, "semantic": False, "multimodal": True, "c
 
 def _default_weights() -> dict[str, float]:
     return {"visual": 0.30, "motion": 0.20, "audio": 0.15, "speech": 0.20, "novelty": 0.15,
-            "colour": 0.20, "edges": 0.20, "change": 0.20}
+            "residual": 0.20, "moving": 0.20, "camera": 0.20, "edges": 0.20, "colour": 0.20}
 
 
 @dataclass

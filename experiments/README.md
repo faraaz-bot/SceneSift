@@ -1,10 +1,10 @@
 # Running the SceneSift comparison
 
-This folder holds the inputs and outputs of the experiment described in
-[docs/EXPERIMENT.md](../docs/EXPERIMENT.md). No videos, annotations, or raw result files are committed; the runs are written up in
-[SUMME_RESULTS.md](SUMME_RESULTS.md) and [TVSUM_RESULTS.md](TVSUM_RESULTS.md). The study uses SumMe
+This folder holds what is needed to run the comparison, and its results. No videos, annotations, or raw
+result files are committed; the runs are written up in [RESULTS.md](RESULTS.md). The study uses SumMe
 and TVSum, each with its own converter (see the last two sections). The manifest format in sections 1
-and 2 also works for any other annotated video.
+and 2 also works for any other annotated video. How the methods work is in
+[docs/METHODS.md](../docs/METHODS.md).
 
 ## 1. Collect videos and annotations
 

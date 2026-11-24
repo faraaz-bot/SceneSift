@@ -3,7 +3,7 @@
     python research/make_figures.py --summe experiments/results/summe --tvsum experiments/results/tvsum \
         --tvsum-manifest experiments/tvsum/manifest.csv --config configs/fitted_summe.yaml
 
-Writes PDF and PNG files to `research/figures/`. The charts read the `results.csv` files written by
+Writes PNG files to `research/figures/`, used by the report and by the report page. The charts read the `results.csv` files written by
 `python -m scenesift evaluate`; the two figures that show a video need the TVSum videos.
 """
 from __future__ import annotations
@@ -44,7 +44,7 @@ FULL, COLUMN = 7.16, 3.5  # IEEE text and column widths in inches
 plt.rcParams.update({"font.size": 7.5, "font.family": "DejaVu Sans", "axes.edgecolor": RULE,
                      "axes.labelcolor": MUTED, "xtick.color": MUTED, "ytick.color": INK,
                      "axes.spines.top": False, "axes.spines.right": False, "axes.linewidth": 0.6,
-                     "xtick.major.width": 0.6, "ytick.major.width": 0.0, "pdf.fonttype": 42})
+                     "xtick.major.width": 0.6, "ytick.major.width": 0.0})
 
 
 def clock(seconds: float) -> str:
@@ -71,10 +71,9 @@ def mean_interval(numbers: list[float]) -> tuple[float, float, float]:
 
 
 def save(figure: plt.Figure, out_dir: Path, name: str) -> None:
-    for suffix in ("pdf", "png"):
-        figure.savefig(out_dir / f"{name}.{suffix}", dpi=300, bbox_inches="tight", facecolor=SURFACE)
+    figure.savefig(out_dir / f"{name}.png", dpi=300, bbox_inches="tight", facecolor=SURFACE)
     plt.close(figure)
-    print(f"wrote {out_dir / name}.pdf")
+    print(f"wrote {out_dir / name}.png")
 
 
 def figure_pipeline(out_dir: Path) -> None:
@@ -98,9 +97,10 @@ def figure_pipeline(out_dir: Path) -> None:
 
     box(1, 14, 12, 12, "Input video", "frames\nand audio")
     box(17, 14, 15, 12, "Candidate clips", "shots (2–12 s)\n+ 4 s and 8 s\nwindows")
-    box(36, 27, 29, 12, "Classical cues", "motion (optical flow) · colour\nhistograms · edges · frame change",
+    box(36, 27, 29, 12, "Classical cues",
+        "SIFT + RANSAC homography:\nscene motion, moving area, camera motion\nCanny edges · HSV colour histograms",
         fill="#fdf3d9")
-    box(36, 14, 29, 12, "Signal cue", "audio loudness and\nspectral change", fill="#e3eefb")
+    box(36, 14, 29, 12, "Signal cues", "optical-flow motion · audio\nloudness and spectral change", fill="#e3eefb")
     box(36, 1, 29, 12, "Learned features", "CLIP visual · Whisper transcript +\nsentence embeddings · novelty",
         fill="#dff3ea")
     box(69, 14, 12, 12, "Normalize", "per video,\nmedian/MAD\nto (0, 1)")
