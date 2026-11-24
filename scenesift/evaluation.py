@@ -9,8 +9,11 @@ from dataclasses import dataclass
 from itertools import combinations
 from pathlib import Path
 
+import numpy as np
+from scipy import stats
+
 from .config import FEATURES, Config
-from .pipeline import analyze, summarize
+from .pipeline import analyze, importance_curve, score, summarize
 
 Interval = tuple[float, float]
 
@@ -19,6 +22,8 @@ METHOD_STAGES = {
     "activity": ("decode", "motion", "shots", "audio"),
     "semantic": ("decode", "visual", "shots"),
     "multimodal": ("decode", "motion", "visual", "shots", "audio", "speech"),
+    "classical": ("decode", "classical", "shots"),
+    "blend": ("decode", "motion", "visual", "classical", "shots", "audio", "speech"),
 }
 
 
@@ -83,6 +88,9 @@ class Annotation:
     category: str
     annotators: dict[str, list[Interval]]
     prompt: str | None = None
+    # Optional per-annotator importance scores on a regular grid (TVSum: one score per 2-second shot).
+    importance: dict[str, list[float]] | None = None
+    importance_step: float = 1.0
 
 
 def load_annotation(path: str | Path) -> Annotation:
@@ -91,8 +99,12 @@ def load_annotation(path: str | Path) -> Annotation:
                   for name, intervals in data["annotators"].items()}
     if not annotators:
         raise ValueError(f"{path}: no annotators.")
+    importance = data.get("importance") or None
     return Annotation(str(data["video_id"]), str(data.get("category", "unknown")), annotators,
-                      data.get("prompt") or None)
+                      data.get("prompt") or None,
+                      {name: [float(v) for v in values] for name, values in importance["annotators"].items()}
+                      if importance else None,
+                      float(importance["step_seconds"]) if importance else 1.0)
 
 
 def annotator_agreement(annotation: Annotation) -> float | None:
@@ -110,6 +122,44 @@ def evaluate_intervals(predicted: list[Interval], annotation: Annotation) -> dic
     precision, recall, f1, coverage = (statistics.fmean(column) for column in zip(*rows))
     return {"precision": precision, "recall": recall, "f1": f1, "f1_best_annotator": max(r[2] for r in rows),
             "event_coverage": coverage}
+
+
+def reference_scores(annotation: Annotation, duration: float) -> tuple[float, dict[str, np.ndarray]]:
+    """Each annotator's importance on a regular grid: (bin length in seconds, scores per annotator).
+
+    Uses the annotation's importance scores when it has them. Otherwise each annotator's intervals
+    become the share of every one-second bin that they selected.
+    """
+    if annotation.importance:
+        return annotation.importance_step, {name: np.asarray(values, dtype=float)
+                                            for name, values in annotation.importance.items()}
+    count = max(1, int(np.ceil(duration - 1e-9)))
+    scores = {name: np.array([overlap_length(intervals, [(float(k), float(k + 1))]) for k in range(count)])
+              for name, intervals in annotation.annotators.items()}
+    return 1.0, scores
+
+
+def _correlations(a: np.ndarray, b: np.ndarray) -> tuple[float, float] | None:
+    size = min(len(a), len(b))
+    a, b = a[:size], b[:size]
+    if size < 3 or np.ptp(a) == 0 or np.ptp(b) == 0:
+        return None  # undefined when either side is constant
+    return float(stats.kendalltau(a, b).statistic), float(stats.spearmanr(a, b).statistic)
+
+
+def rank_correlation(curve: np.ndarray, references: dict[str, np.ndarray]) -> dict[str, float | None]:
+    """Kendall's tau and Spearman's rho against each annotator's scores, averaged over annotators."""
+    pairs = [c for c in (_correlations(curve, reference) for reference in references.values()) if c]
+    if not pairs:
+        return {"kendall_tau": None, "spearman_rho": None}
+    return {"kendall_tau": statistics.fmean(p[0] for p in pairs),
+            "spearman_rho": statistics.fmean(p[1] for p in pairs)}
+
+
+def annotator_rank_agreement(references: dict[str, np.ndarray]) -> float | None:
+    """Mean pairwise Kendall's tau between annotators, as a ceiling for the methods' values."""
+    pairs = [c for c in (_correlations(a, b) for a, b in combinations(references.values(), 2)) if c]
+    return statistics.fmean(p[0] for p in pairs) if pairs else None
 
 
 def read_manifest(path: str | Path) -> list[dict]:
@@ -140,7 +190,7 @@ def parse_budget(value: float | str, duration: float) -> tuple[str, float]:
 
 
 def run_comparison(manifest: str | Path, out_dir: str | Path, *, cfg: Config | None = None,
-                   methods: tuple[str, ...] = ("activity", "semantic", "multimodal"),
+                   methods: tuple[str, ...] = ("activity", "semantic", "multimodal", "classical", "blend"),
                    budgets: tuple[float | str, ...] = (30.0, 60.0, 120.0), split: str = "test",
                    ablations: bool = False, log=print) -> list[dict]:
     """Run every method on the same videos and budgets; write results.csv and summary.md."""
@@ -158,6 +208,10 @@ def run_comparison(manifest: str | Path, out_dir: str | Path, *, cfg: Config | N
         analysis = analyze(row["path"], cfg)
         minutes = analysis.duration / 60.0
         agreement = annotator_agreement(annotation)
+        step, references = reference_scores(annotation, analysis.duration)
+        bins = max(len(values) for values in references.values())
+        rank_agreement = annotator_rank_agreement(references)
+        scored_cache: dict[tuple, object] = {}
         variants: list[tuple[str, str, tuple[str, ...], bool | None]] = [(m, "full", (), None) for m in methods]
         if ablations and "multimodal" in methods:
             variants += [("multimodal", f"without-{name}", (name,), None) for name in FEATURES]
@@ -172,14 +226,20 @@ def run_comparison(manifest: str | Path, out_dir: str | Path, *, cfg: Config | N
                 "variant": "reference", "budget": label, "budget_seconds": round(budget, 3),
                 "summary_seconds": round(budget, 3),
                 **evaluate_intervals(uniform_intervals(analysis.duration, budget), annotation),
+                "kendall_tau": None, "spearman_rho": None,
                 "redundancy": None, "seconds_per_source_minute": 0.0,
                 "annotators": len(annotation.annotators), "annotator_agreement_f1": agreement,
+                "annotator_agreement_tau": rank_agreement,
                 "prompt": prompt or "", "evidence_used": "none",
             })
             for method, variant, drop, diversity in variants:
                 try:
+                    if (method, drop) not in scored_cache:  # scores do not depend on the budget
+                        scored_cache[method, drop] = score(analysis, cfg, prompt, method, drop)
+                    scored = scored_cache[method, drop]
                     summary = summarize(row["path"], prompt=prompt, target_seconds=budget, method=method,
-                                        cfg=cfg, drop=drop, diversity=diversity, analysis=analysis)
+                                        cfg=cfg, drop=drop, diversity=diversity, analysis=analysis,
+                                        scored=scored)
                 except ValueError as exc:
                     log(f"[{row['source_id']}] {method}/{variant} @ {label} not applicable: {exc}")
                     continue
@@ -189,9 +249,11 @@ def run_comparison(manifest: str | Path, out_dir: str | Path, *, cfg: Config | N
                     "variant": variant, "budget": label, "budget_seconds": round(budget, 3),
                     "summary_seconds": summary.total_seconds,
                     **evaluate_intervals(summary.intervals(), annotation),
+                    **rank_correlation(importance_curve(scored, analysis.duration, step, bins), references),
                     "redundancy": summary.redundancy,
                     "seconds_per_source_minute": stage_seconds / minutes if minutes > 0 else None,
                     "annotators": len(annotation.annotators), "annotator_agreement_f1": agreement,
+                    "annotator_agreement_tau": rank_agreement,
                     "prompt": prompt or "", "evidence_used": "+".join(summary.weights),
                 })
     if not results:
@@ -216,7 +278,8 @@ def _mean_sd(values: list[float | None]) -> str:
 
 def summarize_results(results: list[dict]) -> str:
     """Per-category and pooled tables. Values are mean ± sample standard deviation over videos."""
-    metrics = ("f1", "precision", "recall", "event_coverage", "redundancy", "seconds_per_source_minute")
+    metrics = ("f1", "kendall_tau", "spearman_rho", "precision", "recall", "event_coverage", "redundancy",
+               "seconds_per_source_minute")
     lines = ["# SceneSift evaluation summary", "",
              "Mean ± sample standard deviation across videos; `n` is the number of videos. "
              "With small `n` these are descriptive only.", ""]

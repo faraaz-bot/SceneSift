@@ -5,19 +5,26 @@ from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
 FEATURES = ("visual", "motion", "audio", "speech", "novelty")
+# Cues measured directly from pixels, with no pretrained model (scenesift/features/classical.py).
+CLASSICAL_FEATURES = ("residual", "moving", "camera", "edges", "colour")
+ALL_FEATURES = FEATURES + tuple(name for name in CLASSICAL_FEATURES if name not in FEATURES)
 
-# Evidence each compared method may use (docs/EXPERIMENT.md section 7).
+# Evidence each compared method may use (docs/METHODS.md).
 METHOD_FEATURES = {
     "activity": ("motion", "audio"),
     "semantic": ("visual",),
     "multimodal": FEATURES,
+    "classical": CLASSICAL_FEATURES,
+    "blend": ALL_FEATURES,
 }
-# Only the proposed method uses the diversity constraint unless overridden.
-METHOD_DIVERSITY = {"activity": False, "semantic": False, "multimodal": True}
+# Only the multimodal method and the blend use the diversity constraint unless overridden.
+METHOD_DIVERSITY = {"activity": False, "semantic": False, "multimodal": True, "classical": False,
+                    "blend": True}
 
 
 def _default_weights() -> dict[str, float]:
-    return {"visual": 0.30, "motion": 0.20, "audio": 0.15, "speech": 0.20, "novelty": 0.15}
+    return {"visual": 0.30, "motion": 0.20, "audio": 0.15, "speech": 0.20, "novelty": 0.15,
+            "residual": 0.20, "moving": 0.20, "camera": 0.20, "edges": 0.20, "colour": 0.20}
 
 
 @dataclass
@@ -47,6 +54,9 @@ class Config:
     device: str = "auto"  # auto | cpu | cuda
     # Fusion
     weights: dict[str, float] = field(default_factory=_default_weights)
+    # Per-method weights fitted on development videos (`python -m scenesift fit`), keyed by method
+    # name. A method without an entry uses `weights`.
+    method_weights: dict[str, dict[str, float]] = field(default_factory=dict)
     prompt_top_k: int = 3
     context_window_seconds: float = 60.0
     # Selection
@@ -62,13 +72,21 @@ class Config:
     use_cache: bool = True
 
     def __post_init__(self) -> None:
-        unknown = set(self.weights) - set(FEATURES)
+        named = set(self.weights).union(*self.method_weights.values())
+        unknown = named - set(ALL_FEATURES)
         if unknown:
             raise ValueError(f"Unknown feature weights: {sorted(unknown)}")
+        unknown = set(self.method_weights) - set(METHOD_FEATURES)
+        if unknown:
+            raise ValueError(f"Weights given for unknown methods: {sorted(unknown)}")
         if not 0 <= self.window_overlap < 1:
             raise ValueError("window_overlap must be in [0, 1).")
         if not 0 <= self.mmr_lambda <= 1:
             raise ValueError("mmr_lambda must be in [0, 1].")
+
+    def weights_for(self, method: str) -> dict[str, float]:
+        """The weights a method fuses with: its fitted ones when present, otherwise the defaults."""
+        return self.method_weights.get(method) or self.weights
 
     def to_dict(self) -> dict:
         return asdict(self)
